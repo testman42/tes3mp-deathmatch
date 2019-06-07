@@ -88,8 +88,8 @@ options = {}
 options.stage = stage
 i = 0
 for key, value in pairs(testDMConfig.possibleClothing[stage]) do
-	i = i + 1
 	options[i] = value
+	i = i + 1
 	list = list .. value .. "\n"
  end
 tes3mp.ListBox(pid, config.outfitGui, List)
@@ -128,6 +128,36 @@ local equipmentIndexList = {8, 9, 7}
 end
 
 - implement pickups that respawn after certain time
+
+testDM.spawnPickUps = function()
+for i, location in pairs(PickUpLocations[map]) do
+local refId = PickUpLocations[map][i]
+logicHandler.CreateObjectAtLocation(refId, location ..., "place")
+end
+end
+
+testDM.PickUpActivate = function(eventStatus, pid, objects, players)
+if objects[1] ~= nil then
+	if tableHelper.containsValue(PickUpLocations[map], objects[1].refId) then
+		
+		local respawn = tes3mp.CreateTimerEx("OnPickUpRespawn", time.seconds(60), "i", objects[1].refId)
+		tes3mp.StartTimer(respawn)
+	end
+end
+end
+
+
+customEventHooks.registerValidator("OnObjectActivate", testDM.PickUpActivate)
+
+function OnPickUpRespawn(refId)
+id = tableHelper.getNestedKeyValue(PickUpLocations[map], refId)
+
+local refId = PickUpLocations[map][id].refId
+logicHandler.CreateObjectAtLocation(refId, PickUpLocations[map][id].location ..., "place")
+
+end
+
+
 - implement visible status indicators
 -- custom spells that have almost no effect but still have visible animation
 -- custom spells that have no visible animation but can be used to indicate a state of the game in player's HUD

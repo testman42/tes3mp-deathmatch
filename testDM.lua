@@ -22,15 +22,142 @@
 I have insane amout of ideas about what could be implemented
 Here is an attempt to list them all:
 - implement voting for maps and/or game modes
+
+testDM.vote = function(pid, cmd)
+if lastVote == nil then lastVote = os.time() end
+if lastVote + time.seconds(180) > os.time() then
+	lastVote = os.time()
+    tes3mp.SendMessage(pid, "[Deathmatch] Voting has been started. Use /yes or /no for new map in the next 60 seconds.", true)
+	
+	local vote = tes3mp.CreateTimerEx("OnVoteTimeExpiration", time.seconds(60), "i", pid)
+	tes3mp.StartTimer(vote)
+
+	--reset votes
+	voteYes = 0
+	voteNo = 0
+
+else
+    tes3mp.SendMessage(pid, "you cant vote just yet. you still have to wait", false)
+end
+end
+
+customCommandHooks.registerCommand("startvote", testDM.vote)
+
+testDM.realVoting = function(pid, cmd)
+if cmd[1] == "yes" then
+   voteYes = voteYes + 1
+elseif cmd[1] == "no" then
+  voteNo = voteNo + 1
+end
+end
+
+customCommandHooks.registerCommand("yes", testDM.realVoting)
+customCommandHooks.registerCommand("no", testDM.realVoting)
+
+function OnVoteTimeExpiration(pid)
+if voteYes > voteNo then
+	testDM.EndMatch()
+else
+ tes3mp.SendMessage(pid, "[Deathmatch] Voting failed.", true)
+end
+
 - use urm's lobby
 - use drop-on-death script
 - make a lua file that contains map data
 -- specific time of day and weather for each map
 -- make timescale almost 0 so that skybox does not change
 -- define in which cells players can move, block access to other cells
-- implement deathmatch -- ALREADY DONE OLOLOLOLOLOLOL
+usedCells = {"Akulakhan's Chamber","-3, -2", "-2, -2", "-2, 7", "-2, 6"}
+
+testDM.cellChange = function(eventStatus, pid)
+ local cell = tes3mp.GetCell(pid)
+ if tableHelper.containsValue(usedCells, cell) ~= true then
+	testDM.PlayerSpawner(pid)
+ end
+end
+
+customEventHooks.registerHandler("OnPlayerCellChange", testDM.cellchange)
+
+- implement deathmatch -- ALREADY DONE OLOLOLOLOLOLOL 
 - allow players to choose preferred outfit
+
+testDM.ShowOutfits = function(pid, cmd, stage) -- where stage is trousers, shirt .. 
+if stage == nil then stage = 1 end
+list = ""
+options = {}
+options.stage = stage
+i = 0
+for key, value in pairs(testDMConfig.possibleClothing[stage]) do
+	options[i] = value
+	i = i + 1
+	list = list .. value .. "\n"
+ end
+tes3mp.ListBox(pid, config.outfitGui, List)
+end
+
+customCommandHooks.registerCommand("chooseOutfit", testDM.ShowOutfits)
+
+testDM.myGui = function(pid, idGui, data)
+if idGui == config.outfitGui then
+	Players[pid].chosenOutfit[options.stage] = options[tonumber(data)]
+	if options.stage == 3 then
+		testDM.giveOutfit(pid)
+	else
+		testDM.ShowOutfits(pid, "cmd", options.stage + 1)
+	end
+end
+end
+
+customEventHooks.registerValidator("OnGuiAction", testDM.myGui)
+
+testDM.giveOutfit = function(pid)
+	local randomOutfit = {} -- {shirt, pants, shoes}
+	Players[pid].data.equipment[7] = nil
+	Players[pid].data.equipment[8] = nil
+	Players[pid].data.equipment[9] = nil
+
+local equipmentIndexList = {8, 9, 7}
+
+	for i, refId in pairs(Players[pid].chosenOutfit) do	
+		Players[pid].data.equipment[equipmentIndexList[i]] --[[= { refId = refId, count = 1, charge = -1 }
+		randomOutfit[i] = testDMConfig.possibleClothing[i][randomIndex]	
+	end
+	
+	Players[pid].data.mwTDM.DMOutfit = randomOutfit
+	Players[pid]:Save()
+end
+
 - implement pickups that respawn after certain time
+
+testDM.spawnPickUps = function()
+for i, location in pairs(PickUpLocations[map]) do
+local refId = PickUpLocations[map][i]
+logicHandler.CreateObjectAtLocation(refId, location ..., "place")
+end
+end
+
+testDM.PickUpActivate = function(eventStatus, pid, objects, players)
+if objects[1] ~= nil then
+	if tableHelper.containsValue(PickUpLocations[map], objects[1].refId) then
+		
+		local respawn = tes3mp.CreateTimerEx("OnPickUpRespawn", time.seconds(60), "i", objects[1].refId)
+		tes3mp.StartTimer(respawn)
+	end
+end
+end
+
+
+customEventHooks.registerValidator("OnObjectActivate", testDM.PickUpActivate)
+
+function OnPickUpRespawn(refId)
+id = tableHelper.getNestedKeyValue(PickUpLocations[map], refId)
+
+local refId = PickUpLocations[map][id].refId
+logicHandler.CreateObjectAtLocation(refId, PickUpLocations[map][id].location ..., "place")
+
+end
+
+
 - implement visible status indicators
 -- custom spells that have almost no effect but still have visible animation
 -- custom spells that have no visible animation but can be used to indicate a state of the game in player's HUD
